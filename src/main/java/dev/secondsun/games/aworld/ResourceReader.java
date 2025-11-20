@@ -74,7 +74,7 @@ public class ResourceReader {
 
             while (true) {
                 MemEntry memEntry = new MemEntry();
-
+                memEntry.index = numMemList;
                 memEntry.state = read8(memlistStream);
                 memEntry.type = read8(memlistStream);
                 memEntry.bufPtr = 0;

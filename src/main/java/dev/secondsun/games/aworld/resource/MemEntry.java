@@ -1,6 +1,7 @@
 package dev.secondsun.games.aworld.resource;
 
 public class MemEntry {
+    public int index;
     public int state;         // 0x0
     public int type;          // 0x1, Resource::ResType
     public int bufPtr;       // 0x2
@@ -15,7 +16,8 @@ public class MemEntry {
     @Override
     public String toString() {
         return "MemEntry{" +
-                "state=" + state +
+                "index=" + index +
+                ",state=" + state +
                 ", type=" + type +
                 ", bufPtr=" + bufPtr +
                 ", bankId=" + bankId +
