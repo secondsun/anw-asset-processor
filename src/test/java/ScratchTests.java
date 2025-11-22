@@ -4,7 +4,10 @@ import dev.secondsun.games.aworld.resource.MemEntry;
 import org.junit.jupiter.api.Test;
 
 import javax.imageio.ImageIO;
+import java.awt.*;
 import java.awt.image.BufferedImage;
+import java.awt.image.IndexColorModel;
+import java.awt.image.WritableRaster;
 import java.io.File;
 import java.io.IOException;
 
@@ -14,6 +17,8 @@ public class ScratchTests {
     private static final int NUM_COLORS = 16;
     private static final int SCREEN_W = 320;
     private static final int SCREEN_H = 200;
+    private static final int SNES_SCREEN_W = 224;
+    private static final int SNES_SCREEN_H = 160;
 
     @Test
     public void test() {
@@ -23,42 +28,18 @@ public class ScratchTests {
 
         var adjuster = new BitplaneAdjuster();
         var videoMemory = adjuster.convertFromAmigaBitplaneToIndexedBitmap(memEntryList.get(18).bufPtr, data);
-        int[] pal = new int[NUM_COLORS * 3];
-
-        var palettePtr = memEntryList.get(0x14).bufPtr;
+        videoMemory = adjuster.scale(SCREEN_W, SCREEN_H, SNES_SCREEN_W, SNES_SCREEN_H, videoMemory);
         for (int palNum = 0; palNum < MAX_PALETTES; palNum++) {
-            int p = palettePtr + palNum * 32; //colors are coded on 2bytes (565) for 16 colors = 32
-
-            // Moved to the heap, legacy code used to allocate the palette
-            // on the stack.
-            //uint8_t pal[NUM_COLORS * 3]; //3 = BYTES_PER_PIXEL
-
-            for (int i = 0; i < NUM_COLORS; ++i) {
-                int c1 = data[p];
-                int c2 = data[p + 1];
-                p += 2;
-                pal[i * 3] = ((c1 & 0x0F) << 2) | ((c1 & 0x0F) >> 2); // r
-                pal[i * 3 + 1] = ((c2 & 0xF0) >> 2) | ((c2 & 0xF0) >> 6); // g
-                pal[i * 3 + 2] = ((c2 & 0x0F) >> 2) | ((c2 & 0x0F) << 2); // b
-            }
-
-            render(videoMemory, convertPalette(pal), "palette" + palNum + ".png");
-
+            var pal = adjuster.extractPalette(memEntryList.get(0x14).bufPtr, palNum, data);
+            render(videoMemory, pal, "palette" + palNum + ".png");
         }
 
     }
 
     private void render(int[] videoMemory, int[] palette, String fileName) {
-        BufferedImage image = new BufferedImage(SCREEN_W, SCREEN_H, BufferedImage.TYPE_INT_RGB);
-        for (int y = 0; y < SCREEN_H; y++) {
-            for (int x = 0; x < SCREEN_W/2; x++) {
-                var packedPixel = videoMemory[x + y * SCREEN_W/2];
-                var pixelRight = packedPixel & 0x000000F;
-                var pixelLeft = (packedPixel & 0x0000F0) >> 4;
-                image.setRGB(x*2, y, palette[pixelLeft]);
-                image.setRGB(x*2+1, y, palette[pixelRight]);
-            }
-        }
+        IndexColorModel cm = createIndexColorModel(palette);
+        BufferedImage image = getBufferedImage(videoMemory, cm);
+
         try {
             ImageIO.write(image, "png", new File(fileName));
         } catch (IOException e) {
@@ -66,20 +47,33 @@ public class ScratchTests {
         }
     }
 
-    private int[] convertPalette(int[] pal) {
-        int[] palette = new int[NUM_COLORS];
-        for (int i = 0; i < 16; ++i) {
+    private static IndexColorModel createIndexColorModel(int[] palette) {
+        byte[] r = new byte[NUM_COLORS];
+        byte[] g = new byte[NUM_COLORS];
+        byte[] b = new byte[NUM_COLORS];
 
-            int[] c = new int[3];
-            for (int j = 0; j < 3; j++) {
-                int col = pal[i * 3 + j];
-                c[j] = (col << 2) | (col & 3);
-            }
-
-            palette[i] = c[0] << 16 | c[1] << 8 | c[2];
+        for (int i = 0; i < NUM_COLORS; i++) {
+            r[i] = (byte) ((palette[i] >> 16) & 0xFF);
+            g[i] = (byte) ((palette[i] >> 8) & 0xFF);
+            b[i] = (byte) (palette[i] & 0xFF);
         }
-        return palette;
+        // 8 bits per pixel in the raster, but only 16 colors used
+        return new IndexColorModel(8, NUM_COLORS, r, g, b);
     }
+
+
+    private static BufferedImage getBufferedImage(int[] videoMemory, IndexColorModel palette) {
+        BufferedImage image = new BufferedImage(SNES_SCREEN_W, SNES_SCREEN_H, BufferedImage.TYPE_BYTE_INDEXED, palette);
+        WritableRaster raster = image.getRaster();
+        for (int y = 0; y < SNES_SCREEN_H; y++) {
+            for (int x = 0; x < SNES_SCREEN_W; x++) {
+                var packedPixel = videoMemory[x + y * SNES_SCREEN_W];
+                raster.setSample(x, y, 0, packedPixel);
+            }
+        }
+        return image;
+    }
+
 
 
 }
