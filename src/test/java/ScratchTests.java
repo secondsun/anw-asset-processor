@@ -1,6 +1,7 @@
 import dev.secondsun.games.aworld.BitplaneAdjuster;
 import dev.secondsun.games.aworld.ResourceReader;
 import dev.secondsun.games.aworld.resource.MemEntry;
+import dev.secondsun.games.aworld.resource.Resource;
 import org.junit.jupiter.api.Test;
 
 import javax.imageio.ImageIO;
@@ -10,6 +11,7 @@ import java.awt.image.IndexColorModel;
 import java.awt.image.WritableRaster;
 import java.io.File;
 import java.io.IOException;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class ScratchTests {
 
@@ -27,19 +29,31 @@ public class ScratchTests {
         var memEntryList = result.memList();
 
         var adjuster = new BitplaneAdjuster();
-        var videoMemory = adjuster.convertFromAmigaBitplaneToIndexedBitmap(memEntryList.get(18).bufPtr, data);
-        videoMemory = adjuster.scale(SCREEN_W, SCREEN_H, SNES_SCREEN_W, SNES_SCREEN_H, videoMemory);
-        for (int palNum = 0; palNum < MAX_PALETTES; palNum++) {
-            var pal = adjuster.extractPalette(memEntryList.get(0x14).bufPtr, palNum, data);
-            render(videoMemory, pal, "palette" + palNum + ".png");
-        }
+        var bitmapMemEntryList = memEntryList.stream().filter(it -> it.type == Resource.RT_POLY_ANIM).toList();
+
+        var atomicCounter = new AtomicInteger(0);
+        bitmapMemEntryList.forEach( memEntry -> {
+
+            var videoMemory = adjuster.convertFromAmigaBitplaneToIndexedBitmap(memEntry.bufPtr, data);
+            videoMemory = adjuster.scale(SCREEN_W, SCREEN_H, SNES_SCREEN_W, SNES_SCREEN_H, videoMemory);
+            for (int palNum = 0; palNum < MAX_PALETTES; palNum++) {
+                var pal = adjuster.extractPalette(memEntryList.get(0x23).bufPtr, palNum, data);
+                render(videoMemory, pal, "image_" + atomicCounter.get()  + "_palette_" + palNum + ".png");
+            }
+            atomicCounter.getAndIncrement();
+        });
 
     }
 
     private void render(int[] videoMemory, int[] palette, String fileName) {
         IndexColorModel cm = createIndexColorModel(palette);
         BufferedImage image = getBufferedImage(videoMemory, cm);
+        for (int colorIndex = 0; colorIndex < palette.length; colorIndex++) {
+            var gr = image.getGraphics();
+            gr.setColor(new Color(palette[colorIndex]));
+            gr.fillRect(colorIndex % 16 * 16, 144, 16, 16);
 
+        }
         try {
             ImageIO.write(image, "png", new File(fileName));
         } catch (IOException e) {
