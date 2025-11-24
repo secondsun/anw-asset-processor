@@ -13,7 +13,7 @@ import java.util.Objects;
 import static dev.secondsun.games.aworld.Util.*;
 
 public class ResourceReader {
-    public static record FlattenedResources(int[] resourcesBin, List<MemEntry> memList) {}
+    public record FlattenedResources(int[] resourcesBin, List<MemEntry> memList) {}
     public static final int MEMENTRY_STATE_END_OF_MEMLIST = 0xFF;
 
 

@@ -1,9 +1,5 @@
 package dev.secondsun.games.aworld;
 
-import dev.secondsun.games.aworld.snes.Tile;
-
-import java.util.List;
-
 /**
  * Some resources in AWorld are stored in a bitplane format and need to be adjusted to the snes bitplane format.
  * TODO : Confirm this
@@ -69,26 +65,6 @@ public class BitplaneAdjuster {
         return videoMemoryOut;
     }
 
-    /**
-     * Converts a 4bpp bitmap to a list of snes tiles. It is assumed the bitmap is 224x160
-     * @param videoMemory
-     * @return
-     */
-    public List<Tile> convertFromIndexedBitmapTo4BPPSnesTiles(int[] videoMemory) {
-        return null;
-    }
-
-    /**
-     * Reads a palette from ANW data and turns it into a 32-bit RGB palette
-     * ANW palette data is in the on 2bytes (565) for 16 colors
-     * @param src index in memory where palette starts
-     * @param memory memory to read from
-     * @return a 32-bit RGB palette of 16 colors
-     */
-    public int[] createPalette(int src, int[] memory) {
-
-        return null;
-    }
 
     /**
      * Scales a bitmap from source dimensions to target dimensions.
@@ -170,4 +146,80 @@ public class BitplaneAdjuster {
 
     }
 
+    /**
+     *
+     * @param bitmap is a 224x160 bitmap with each pixel represented by 8 bits but a 4bpp color depth.
+     * @return
+     */
+    public byte[] tileize(int[] bitmap) {
+        var bitmapWidth = 224;
+        var bitmapHeight = 160;
+        var tileWidth = 8;
+        var tileHeight = 8;
+        var tileBytesIndex = 0;
+        var tileBytes = new byte[224*80+32];//include one tile of all 0's after the bitmap
+        for (int y = 0; y < bitmapHeight/tileHeight; y++) {//skips to the start of each 8x8 "tile"
+            var bitmapY = tileHeight * y;
+            for (int x = 0; x < bitmapWidth/tileWidth; x++) {
+                var bitmapX = tileWidth * x;
+                //here bitmapX and bitmapY are the top left corner of the tile in bitmapSpace
+                //Now for each row of the tile we will get the two bytes that represent the first 2 bits of the bitplane
+                for (int tileY = 0; tileY < tileHeight; tileY++) {
+                    var byte1 = 0;
+                    var byte2 = 0;
+                    for (int tileX = 0; tileX < tileWidth; tileX++) {
+                        var pixel = bitmap[(bitmapY * bitmapWidth + bitmapX) + (tileY * bitmapWidth + tileX) ];
+                        byte1 |= pixel & 0b01;
+                        byte2 |= (pixel & 0b010) >> 1;
+                        byte1 <<= 1;
+                        byte2 <<= 1;
+                    }
+                    tileBytes[tileBytesIndex++] = (byte) byte1;
+                    tileBytes[tileBytesIndex++] = (byte) byte2;
+                }
+                //Now for each row of the tile we will get the two bytes that represent the second 2 bits of the bitplane
+                for (int tileY = 0; tileY < tileHeight; tileY++) {
+                    var byte1 = 0;
+                    var byte2 = 0;
+                    for (int tileX = 0; tileX < tileWidth; tileX++) {
+                        var pixel = bitmap[(bitmapY * bitmapWidth + bitmapX) + (tileY * bitmapWidth + tileX) ];
+                        byte1 |= (pixel & 0b0100) >> 2;
+                        byte2 |= (pixel & 0b01000) >> 3;
+                        byte1 <<= 1;
+                        byte2 <<= 1;
+                    }
+                    tileBytes[tileBytesIndex++] = (byte) byte1;
+                    tileBytes[tileBytesIndex++] = (byte) byte2;
+                }
+            }
+        }
+        return tileBytes;
+    }
+
+    /**
+     *
+     * @param logoPalette palette in 24 bit rgb
+     * @return snes 4bpp pallete in 555 bgr
+     */
+    public byte[] toSnesPalette(int[] logoPalette) {
+        var snesPalette = new byte[logoPalette.length * 2];
+        var paletteIndex = 0;
+        for (int i = 0; i < logoPalette.length; i++) {
+            var byte1 = 0;
+            var byte2 = 0;
+            var paletteColor = logoPalette[i];
+
+            byte1 |= ((paletteColor & 0x0000FF) >> 3) //round blue
+                    << 5; // set blue bytes;
+            byte1 |= ((paletteColor & 0x00FF00) >> 14); //round green's top two bits
+
+            byte2 |= ((((paletteColor & 0x00FF00) >> 11) & 0b00111) //round green and mask top two bits already saved in byte1
+                    << 5)& 0xFF; // set blue bytes;
+            byte2 |= ((paletteColor & 0xFF0000) >> 19); //round red's to five bits and add them at the end
+
+            snesPalette[paletteIndex++] = (byte) byte1;
+            snesPalette[paletteIndex++] = (byte) byte2;
+        }
+        return snesPalette;
+    }
 }

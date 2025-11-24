@@ -1,6 +1,5 @@
 import dev.secondsun.games.aworld.BitplaneAdjuster;
 import dev.secondsun.games.aworld.ResourceReader;
-import dev.secondsun.games.aworld.resource.MemEntry;
 import dev.secondsun.games.aworld.resource.Resource;
 import org.junit.jupiter.api.Test;
 
@@ -10,6 +9,7 @@ import java.awt.image.BufferedImage;
 import java.awt.image.IndexColorModel;
 import java.awt.image.WritableRaster;
 import java.io.File;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -31,18 +31,62 @@ public class ScratchTests {
         var adjuster = new BitplaneAdjuster();
         var bitmapMemEntryList = memEntryList.stream().filter(it -> it.type == Resource.RT_POLY_ANIM).toList();
 
+        var interplayLogo = adjuster.convertFromAmigaBitplaneToIndexedBitmap(memEntryList.get(18).bufPtr, data);
+        interplayLogo = adjuster.scale(SCREEN_W, SCREEN_H, SNES_SCREEN_W, SNES_SCREEN_H, interplayLogo);
+        var logoPalette = adjuster.extractPalette(memEntryList.get(0x14).bufPtr, 4, data);
+
+        byte[] snesTiles = adjuster.tileize(interplayLogo);
+        byte[] snesPalette = adjuster.toSnesPalette(logoPalette);
+        byte[] tileMap =  makeTileMap();
+        
+        File tilesFile = new File("tiles.bin");
+        File paletteFile = new File("palette.bin");
+        File tileMapFile = new File("tilemap.bin");
+
+        try (FileOutputStream tilesOut = new FileOutputStream(tilesFile);
+             FileOutputStream paletteOut = new FileOutputStream(paletteFile);
+             FileOutputStream tileMapOut = new FileOutputStream(tileMapFile)) {
+
+            tilesOut.write(snesTiles);
+            paletteOut.write(snesPalette);
+            tileMapOut.write(tileMap);
+
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+
+
+
+
         var atomicCounter = new AtomicInteger(0);
         bitmapMemEntryList.forEach( memEntry -> {
 
             var videoMemory = adjuster.convertFromAmigaBitplaneToIndexedBitmap(memEntry.bufPtr, data);
             videoMemory = adjuster.scale(SCREEN_W, SCREEN_H, SNES_SCREEN_W, SNES_SCREEN_H, videoMemory);
             for (int palNum = 0; palNum < MAX_PALETTES; palNum++) {
-                var pal = adjuster.extractPalette(memEntryList.get(0x23).bufPtr, palNum, data);
-                render(videoMemory, pal, "image_" + atomicCounter.get()  + "_palette_" + palNum + ".png");
+                var pal = adjuster.extractPalette(memEntryList.get(0x14).bufPtr, palNum, data);
+                render(videoMemory, pal, "image_" + memEntry.index  + "_palette_" + palNum + ".png");
             }
             atomicCounter.getAndIncrement();
         });
 
+    }
+
+    private byte[] makeTileMap() {
+        var toReturn = new byte[1024];
+        for (int y = 0; y < 32; y++) {
+            for (int x = 0; x < 32; x++) {
+                if (y*8>=160){
+                    toReturn[x+y*32] = (byte) (48);//should be the last tile that is all black
+                } else if (x*8 > 224) {
+                    toReturn[x+y*32] = (byte) (48);
+                } else {
+                    toReturn[x+y*32] = (byte) (x+y*32);
+                }
+                
+            }
+        }
+        return toReturn;
     }
 
     private void render(int[] videoMemory, int[] palette, String fileName) {
