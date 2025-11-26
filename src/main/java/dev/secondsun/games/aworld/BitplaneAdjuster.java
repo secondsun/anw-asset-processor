@@ -168,28 +168,35 @@ public class BitplaneAdjuster {
                     var byte1 = 0;
                     var byte2 = 0;
                     for (int tileX = 0; tileX < tileWidth; tileX++) {
-                        var pixel = bitmap[(bitmapY * bitmapWidth + bitmapX) + (tileY * bitmapWidth + tileX) ];
-                        byte1 |= pixel & 0b01;
-                        byte2 |= (pixel & 0b010) >> 1;
                         byte1 <<= 1;
                         byte2 <<= 1;
+                        var pixel = bitmap[(bitmapY * bitmapWidth + bitmapX) + (tileY * bitmapWidth + tileX) ];
+                        if (pixel > 15) {
+                            throw new RuntimeException("Pixel value is greater than 15");
+                        }
+                        byte1 |= pixel & 0b01;
+                        byte2 |= (pixel & 0b010) >> 1;
+
                     }
-                    tileBytes[tileBytesIndex++] = (byte) byte1;
                     tileBytes[tileBytesIndex++] = (byte) byte2;
+                    tileBytes[tileBytesIndex++] = (byte) byte1;
                 }
                 //Now for each row of the tile we will get the two bytes that represent the second 2 bits of the bitplane
                 for (int tileY = 0; tileY < tileHeight; tileY++) {
                     var byte1 = 0;
                     var byte2 = 0;
                     for (int tileX = 0; tileX < tileWidth; tileX++) {
-                        var pixel = bitmap[(bitmapY * bitmapWidth + bitmapX) + (tileY * bitmapWidth + tileX) ];
-                        byte1 |= (pixel & 0b0100) >> 2;
-                        byte2 |= (pixel & 0b01000) >> 3;
                         byte1 <<= 1;
                         byte2 <<= 1;
+                        var pixel = bitmap[(bitmapY * bitmapWidth + bitmapX) + (tileY * bitmapWidth + tileX) ];
+                        if (pixel > 15) {
+                            throw new RuntimeException("Pixel value is greater than 15");
+                        }
+                        byte1 |= (pixel & 0b0100) >> 2;
+                        byte2 |= (pixel & 0b01000) >> 3;
                     }
-                    tileBytes[tileBytesIndex++] = (byte) byte1;
                     tileBytes[tileBytesIndex++] = (byte) byte2;
+                    tileBytes[tileBytesIndex++] = (byte) byte1;
                 }
             }
         }
@@ -205,20 +212,20 @@ public class BitplaneAdjuster {
         var snesPalette = new byte[logoPalette.length * 2];
         var paletteIndex = 0;
         for (int i = 0; i < logoPalette.length; i++) {
-            var byte1 = 0;
-            var byte2 = 0;
-            var paletteColor = logoPalette[i];
+            byte byte1 = 0;
+            byte byte2 = 0;
+            int paletteColor = logoPalette[i];
 
-            byte1 |= ((paletteColor & 0x0000FF) >> 3) //round blue
-                    << 5; // set blue bytes;
-            byte1 |= ((paletteColor & 0x00FF00) >> 14); //round green's top two bits
+            byte1 |= (byte) (((paletteColor & 0x0000FF) >> 3) //round blue
+                                << 2); // set blue bytes;
+            byte1 |= (byte) ((paletteColor & 0x00FF00) >> 14); //round green's top two bits
 
-            byte2 |= ((((paletteColor & 0x00FF00) >> 11) & 0b00111) //round green and mask top two bits already saved in byte1
-                    << 5)& 0xFF; // set blue bytes;
-            byte2 |= ((paletteColor & 0xFF0000) >> 19); //round red's to five bits and add them at the end
+            byte2 |= (byte) (((((paletteColor & 0x00FF00) >> 11) & 0b00111) //round green and mask top two bits already saved in byte1
+                                << 5)& 0xFF); // set blue bytes;
+            byte2 |= (byte) ((paletteColor & 0xFF0000) >> 19); //round red's to five bits and add them at the end
 
-            snesPalette[paletteIndex++] = (byte) byte1;
             snesPalette[paletteIndex++] = (byte) byte2;
+            snesPalette[paletteIndex++] = (byte) byte1;
         }
         return snesPalette;
     }

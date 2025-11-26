@@ -31,9 +31,9 @@ public class ScratchTests {
         var adjuster = new BitplaneAdjuster();
         var bitmapMemEntryList = memEntryList.stream().filter(it -> it.type == Resource.RT_POLY_ANIM).toList();
 
-        var interplayLogo = adjuster.convertFromAmigaBitplaneToIndexedBitmap(memEntryList.get(18).bufPtr, data);
+        var interplayLogo = adjuster.convertFromAmigaBitplaneToIndexedBitmap(memEntryList.get(68).bufPtr, data);
         interplayLogo = adjuster.scale(SCREEN_W, SCREEN_H, SNES_SCREEN_W, SNES_SCREEN_H, interplayLogo);
-        var logoPalette = adjuster.extractPalette(memEntryList.get(0x14).bufPtr, 4, data);
+        var logoPalette = adjuster.extractPalette(memEntryList.get(0x14).bufPtr, 8, data);
 
         byte[] snesTiles = adjuster.tileize(interplayLogo);
         byte[] snesPalette = adjuster.toSnesPalette(logoPalette);
@@ -55,6 +55,11 @@ public class ScratchTests {
             throw new RuntimeException(e);
         }
 
+//        var videoMemory = adjuster.convertFromAmigaBitplaneToIndexedBitmap(memEntryList.get(18).bufPtr, data);
+//        videoMemory = adjuster.scale(SCREEN_W, SCREEN_H, SNES_SCREEN_W, SNES_SCREEN_H, videoMemory);
+        int palNum2 = 8;
+        var pal2 = adjuster.extractPalette(memEntryList.get(0x14).bufPtr, palNum2, data);
+        render(interplayLogo, pal2, "image_" + 18  + "_palette_" + palNum2 + ".png");
 
 
 
@@ -73,15 +78,22 @@ public class ScratchTests {
     }
 
     private byte[] makeTileMap() {
-        var toReturn = new byte[1024];
+        var toReturn = new byte[2048];
+        int count = 0;
         for (int y = 0; y < 32; y++) {
             for (int x = 0; x < 32; x++) {
                 if (y*8>=160){
-                    toReturn[x+y*32] = (byte) (48);//should be the last tile that is all black
-                } else if (x*8 > 224) {
-                    toReturn[x+y*32] = (byte) (48);
+                    toReturn[(2*(x+y*32))] = (byte) (28*20+1);//should be the last tile that is all black
+                    toReturn[(2*(x+y*32))+1] = (byte) 1;//should be the last tile that is all black
+                } else if (x > 27) {
+                    toReturn[2*(x+y*32)] = (byte) (28*20+1);
+                    toReturn[(2*(x+y*32))+1] = (byte) 1;//should be the last tile that is all black
                 } else {
-                    toReturn[x+y*32] = (byte) (x+y*32);
+
+                    toReturn[(2*(x+y*32))] = (byte) (count&0x00FF);
+                    toReturn[(2*(x+y*32))+1] = (byte) ((count &0b100000000)>>8);//should be the last tile that is all black
+
+                    count++;
                 }
                 
             }
