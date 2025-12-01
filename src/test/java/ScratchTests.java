@@ -31,9 +31,9 @@ public class ScratchTests {
         var adjuster = new BitplaneAdjuster();
         var bitmapMemEntryList = memEntryList.stream().filter(it -> it.type == Resource.RT_POLY_ANIM).toList();
 
-        var interplayLogo = adjuster.convertFromAmigaBitplaneToIndexedBitmap(memEntryList.get(68).bufPtr, data);
+        var interplayLogo = adjuster.convertFromAmigaBitplaneToIndexedBitmap(memEntryList.get(18).bufPtr, data);
         interplayLogo = adjuster.scale(SCREEN_W, SCREEN_H, SNES_SCREEN_W, SNES_SCREEN_H, interplayLogo);
-        var logoPalette = adjuster.extractPalette(memEntryList.get(0x14).bufPtr, 8, data);
+        var logoPalette = adjuster.extractPalette(memEntryList.get(0x14).bufPtr, 7, data);
 
         byte[] snesTiles = adjuster.tileize(interplayLogo);
         byte[] snesPalette = adjuster.toSnesPalette(logoPalette);
