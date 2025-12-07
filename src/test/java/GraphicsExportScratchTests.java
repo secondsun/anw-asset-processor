@@ -13,7 +13,7 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicInteger;
 
-public class ScratchTests {
+public class GraphicsExportScratchTests {
 
     private static final int MAX_PALETTES = 32;
     private static final int NUM_COLORS = 16;

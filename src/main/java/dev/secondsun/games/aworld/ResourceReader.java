@@ -9,11 +9,21 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 import static dev.secondsun.games.aworld.Util.*;
 
 public class ResourceReader {
-    public record FlattenedResources(int[] resourcesBin, List<MemEntry> memList) {}
+    public record FlattenedResources(int[] resourcesBin, List<MemEntry> memList) {
+        @SuppressWarnings("NumericCastToByte")
+        public byte[] resourcesByteBin() {
+            var bytes = new byte[resourcesBin.length];
+            for (int i = 0; i < resourcesBin.length; i++) {
+                bytes[i] = (byte) resourcesBin[i];
+            }
+            return bytes;
+        }
+    }
     public static final int MEMENTRY_STATE_END_OF_MEMLIST = 0xFF;
 
 
