@@ -69,6 +69,7 @@ public class ResourceReader {
         Bank bank = new Bank(Objects.requireNonNull(this.getClass().getClassLoader().getResource("aworld")).getPath());
         bank.read(me, offset, 0, memory);
         me.bufPtr = offset;
+        me.bankOffset = offset;
         me.packedSize = me.size;
         me.bankId = 0;
     }

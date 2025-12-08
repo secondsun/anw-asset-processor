@@ -59,7 +59,7 @@ public class SoundScratchTests {
         }
     }
 
-    private void playAudio(short[] buffer) {
+    public static void playAudio(short[] buffer) {
         try {
             AudioFormat format = new AudioFormat(SAMPLE_RATE, 16, 1, true, true);
             DataLine.Info info = new DataLine.Info(SourceDataLine.class, format);

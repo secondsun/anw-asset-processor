@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Test;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.logging.Logger;
 
@@ -21,43 +22,49 @@ public class MusicScratchTests {
         var resources = new ResourceReader().readAllResources();
         var memory = resources.resourcesByteBin();
         var memEntryList = resources.memList();
-
+        var output = new HashMap<AudioChannel, ByteBuffer>();
         var sounds = memEntryList.stream().filter(it -> it.type == RT_SOUND && it.size != 0).toList();
         var musics = memEntryList.stream().filter(it -> it.type == RT_MUSIC).toList();
         var channels = new ArrayList<AudioChannel>();
-        for (MemEntry music : musics) {
-            var data = ByteBuffer.wrap(memory, music.bufPtr, music.size);
-            var _module = load_module(data, music, (byte) 0, (short) 0);
-            load_samples(data, music, _module,memEntryList, memory);
-            load_seq_table(data, music, _module);
+        MemEntry music = musics.get(0);
+        var musicData = ByteBuffer.wrap(memory, music.bufPtr, music.size);
+        var _module = load_module(musicData, music, (byte) 0, (short) 15700);
+        load_samples(musicData, music, _module, memEntryList, memory);
+        load_seq_table(musicData, music, _module);
 
-            //music#183
-            while(_module.seq_index < _module.seq_count) {
-                var sequence = _module.seq_table[_module.seq_index++];
-                var data2 = ByteBuffer.wrap(data.array(), (int)(_module.data_ptr + _module.data_pos + sequence * 1024),data.limit());
-                for(byte channel = 0; channel < 4; ++channel) {
-                    var temp = processPattern(channel, data2, _module);
-                    if (temp != null) {
-                        channels.add(temp);
-                    }
-                }
-                //MIXER.MIXALLCHANNELS
-
-
-                _module.data_pos += data2.position() - data.position();
-                if(_module.data_pos >= 1024) {
-                    _module.data_pos = 0;
-                    var seq_index = _module.seq_index + 1;
-                    var seq_count = _module.seq_count;
-                    if(seq_index >= seq_count) {
-                        System.out.printf("music is over [music_id: 0x%02x]\n", _module.music_id);
-                        break;
-                    }
-                    else {
-                        _module.seq_index = (byte) seq_index;
-                    }
+        //music#183
+        while (_module.seq_index < _module.seq_count) {
+            var sequence = _module.seq_table[_module.seq_index];
+            var moduleData = ByteBuffer.wrap(musicData.array(), (int) (_module.data_ptr + _module.data_pos + sequence * 1024), musicData.limit());
+            for (byte channel = 0; channel < 4; ++channel) {
+                var temp = processPattern(channel, moduleData, _module);
+                if (temp != null) {
+                    channels.add(temp);
                 }
             }
+            //MIXER.MIXALLCHANNELS
+            var buffer = new short[SAMPLE_RATE * 10];
+            var length = SAMPLE_RATE * 10;
+
+            for (var channel : channels) {
+                new Mixer().mixOneChannel(channel, buffer, length, memory);
+            }
+
+            SoundScratchTests.playAudio(buffer);
+
+            _module.data_pos += moduleData.position() - musicData.position();
+            if (_module.data_pos >= 1024) {
+                _module.data_pos = 0;
+                var seq_index = _module.seq_index + 1;
+                var seq_count = _module.seq_count;
+                if (seq_index >= seq_count) {
+                    System.out.printf("music is over [music_id: 0x%02x]\n", _module.music_id);
+                    break;
+                } else {
+                    _module.seq_index = (byte) seq_index;
+                }
+            }
+
 
 //          playPattern(data, module);
         }
@@ -69,23 +76,21 @@ public class MusicScratchTests {
         MusicPattern pattern = new MusicPattern();
         pattern.word1 = data.getShort();
         pattern.word2 = data.getShort();
-        if(pattern.word1 == 0x0000) {
+        if (pattern.word1 == 0x0000) {
             return null;
-        }
-        else if(pattern.word1 == 0xfffd) {
+        } else if (pattern.word1 == 0xfffd) {
             return null;
-        }
-        else if(pattern.word1 == 0xfffe) {
+        } else if (pattern.word1 == 0xfffe) {
             return null;
         } else {
-        short period_value = (short) ((pattern.word1 & 0x0fff) >>  0);
-        byte  sample_index = (byte) ((pattern.word2 & 0xf000) >> 12);
-        byte  effect_index = (byte) ((pattern.word2 & 0x0f00) >>  8);
-        byte  effect_value = (byte) ((pattern.word2 & 0x00ff) >>  0);
-            if(sample_index != 0) {
+            short period_value = (short) ((pattern.word1 & 0x0fff) >> 0);
+            byte sample_index = (byte) ((pattern.word2 & 0xf000) >> 12);
+            byte effect_index = (byte) ((pattern.word2 & 0x0f00) >> 8);
+            byte effect_value = (byte) ((pattern.word2 & 0x00ff) >> 0);
+            if (sample_index != 0) {
                 var sample = (_module.samples[sample_index - 1]);
                 short volume = sample.volume;
-                switch(effect_index) {
+                switch (effect_index) {
                     case 0x0: // no effect
                         break;
                     case 0x5: // volume up
@@ -99,18 +104,18 @@ public class MusicScratchTests {
                         break;
                 }
                 sample.frequency = getFrequency((byte) period_value);
-                sample.volume    = getVolume((byte) volume);
+                sample.volume = getVolume((byte) volume);
 
                 var channel = new AudioChannel();
-                channel.active    = 1;
-                channel.volume    = sample.volume;
+                channel.active = 1;
+                channel.volume = sample.volume;
                 channel.sample_id = sample.sample_id;
-                channel.data_ptr  = sample.data_ptr;
-                channel.data_len  = (sample.data_len);
-                channel.data_pos  = (0);
-                channel.data_inc  = ((sample.frequency) << 8) / SAMPLE_RATE;
-                channel.loop_pos  = (sample.loop_pos);
-                channel.loop_len  = (sample.loop_len);
+                channel.data_ptr = sample.data_ptr;
+                channel.data_len = (sample.data_len);
+                channel.data_pos = (0);
+                channel.data_inc = ((sample.frequency) << 8) / SAMPLE_RATE;
+                channel.loop_pos = (sample.loop_pos);
+                channel.loop_len = (sample.loop_len);
                 return channel;
             }
             return null;
@@ -125,14 +130,14 @@ public class MusicScratchTests {
     }
 
     private void load_seq_table(ByteBuffer data, MemEntry music, MusicModule _module) {
-        data.position(data.position() + 0x40);
-        for( int sequence = 0; sequence < _module.seq_table.length; sequence++) {
+        data.position( 0x40);
+        for (int sequence = 0; sequence < _module.seq_table.length; sequence++) {
             _module.seq_table[sequence] = data.get();
         }
     }
 
     private void load_samples(ByteBuffer data, MemEntry music, MusicModule _module, List<MemEntry> memEntryList, byte[] memory) {
-        data.position(data.position() + 0x02);
+        data.position( 0x02);
         for (AudioSample sample : _module.samples) {
             if (sample == null) continue;
 
@@ -143,10 +148,9 @@ public class MusicScratchTests {
                 System.out.println("load sample [sound_id: " + String.format("0x%02x", sample_id) + ", volume: " + volume + "]");
 
                 var resource = memEntryList.get(sample_id);
-                if(resource == null) {
+                if (resource == null) {
                     Logger.getAnonymousLogger().log(java.util.logging.Level.INFO, String.format("resource not found [sound_id: 0x%02x]", sample_id));
-                }
-                else if(resource.type != RT_SOUND) {
+                } else if (resource.type != RT_SOUND) {
                     Logger.getAnonymousLogger().log(java.util.logging.Level.INFO, String.format("resource not invalid [sound_id: 0x%02x]", sample_id));
 
                 }
@@ -177,14 +181,14 @@ public class MusicScratchTests {
     }
 
     private MusicModule load_module(ByteBuffer data, MemEntry music, byte index, short ticks) {
-        var _module             = new MusicModule();
-        _module.music_id    = (short) music.index;
-        _module.music_ticks = data.position(data.position() + 0x00).getShort();
-        _module.data_ptr    = data.position(data.position() + 0xc0).get();
-        _module.data_pos    = 0;
-        _module.seq_index   = index;
-        _module.seq_count   = (byte) data.position(data.position() + 0x3e).getShort();
-        if(ticks != 0) {
+        var _module = new MusicModule();
+        _module.music_id = (short) music.index;
+        _module.music_ticks = data.position( 0x00).getShort();
+        _module.data_ptr = data.position( 0xc0).get();
+        _module.data_pos = 0;
+        _module.seq_index = index;
+        _module.seq_count = (byte) data.position( 0x3e).getShort();
+        if (ticks != 0) {
             _module.music_ticks = ticks;
         }
         return _module;
