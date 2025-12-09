@@ -12,8 +12,6 @@ import java.nio.ByteOrder;
 
 import static dev.secondsun.games.aworld.resource.Resource.RT_MUSIC;
 import static dev.secondsun.games.aworld.resource.Resource.RT_SOUND;
-import static dev.secondsun.games.aworld.resource.audio.Paula.getFrequency;
-import static dev.secondsun.games.aworld.resource.audio.Paula.getVolume;
 
 public class SoundScratchTests {
 
@@ -121,6 +119,19 @@ public class SoundScratchTests {
             sample.loop_len += dataLen;
         }
         return sample;
+    }
+
+    private static short getFrequency(byte pitch) {
+        if (pitch > Paula.frequencyTable.length)
+            return pitch = 0;
+        return Paula.frequencyTable[pitch];
+    }
+
+    private static  byte getVolume(byte volume) {
+        if (volume > 0x3f) {
+            volume = 0x3f;
+        }
+        return volume;
     }
 
 

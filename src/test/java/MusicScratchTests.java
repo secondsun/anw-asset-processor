@@ -11,8 +11,6 @@ import java.util.logging.Logger;
 
 import static dev.secondsun.games.aworld.resource.Resource.RT_MUSIC;
 import static dev.secondsun.games.aworld.resource.Resource.RT_SOUND;
-import static dev.secondsun.games.aworld.resource.audio.Paula.getFrequency;
-import static dev.secondsun.games.aworld.resource.audio.Paula.getVolume;
 
 public class MusicScratchTests {
     public static final int SAMPLE_RATE = 44100;
@@ -27,7 +25,7 @@ public class MusicScratchTests {
         var musics = memEntryList.stream().filter(it -> it.type == RT_MUSIC).toList();
         var channels = new ArrayList<AudioChannel>();
         MemEntry music = musics.get(0);
-        var musicData = ByteBuffer.wrap(memory, music.bufPtr, music.size);
+        var musicData = wrapArray(memory, music.bufPtr, music.size);
         var _module = load_module(musicData, music, (byte) 0, (short) 15700);
         load_samples(musicData, music, _module, memEntryList, memory);
         load_seq_table(musicData, music, _module);
@@ -35,7 +33,9 @@ public class MusicScratchTests {
         //music#183
         while (_module.seq_index < _module.seq_count) {
             var sequence = _module.seq_table[_module.seq_index];
-            var moduleData = ByteBuffer.wrap(musicData.array(), (int) (_module.data_ptr + _module.data_pos + sequence * 1024), musicData.limit());
+            //var moduleData = musicData.slice((int) (_module.data_ptr + _module.data_pos + sequence * 1024), (int) (music.size - (_module.data_ptr + _module.data_pos + sequence * 1024)));
+            // Below is probably wrong.
+            var moduleData = wrapArray(musicData.array(), (int) (_module.data_ptr + _module.data_pos + sequence * 1024), musicData.limit() - (int) (_module.data_ptr + _module.data_pos + sequence * 1024));
             for (byte channel = 0; channel < 4; ++channel) {
                 var temp = processPattern(channel, moduleData, _module);
                 if (temp != null) {
@@ -50,7 +50,7 @@ public class MusicScratchTests {
                 new Mixer().mixOneChannel(channel, buffer, length, memory);
             }
 
-            SoundScratchTests.playAudio(buffer);
+            //SoundScratchTests.playAudio(buffer);
 
             _module.data_pos += moduleData.position() - musicData.position();
             if (_module.data_pos >= 1024) {
@@ -103,8 +103,8 @@ public class MusicScratchTests {
                         System.out.printf("unsupported effect $%x%n\n", effect_index);
                         break;
                 }
-                sample.frequency = getFrequency((byte) period_value);
-                sample.volume = getVolume((byte) volume);
+                sample.frequency = (short) getFrequency(period_value);
+                sample.volume = getVolume( volume);
 
                 var channel = new AudioChannel();
                 channel.active = 1;
@@ -134,6 +134,7 @@ public class MusicScratchTests {
         for (int sequence = 0; sequence < _module.seq_table.length; sequence++) {
             _module.seq_table[sequence] = data.get();
         }
+
     }
 
     private void load_samples(ByteBuffer data, MemEntry music, MusicModule _module, List<MemEntry> memEntryList, byte[] memory) {
@@ -154,7 +155,7 @@ public class MusicScratchTests {
                     Logger.getAnonymousLogger().log(java.util.logging.Level.INFO, String.format("resource not invalid [sound_id: 0x%02x]", sample_id));
 
                 }
-                var sampleData = ByteBuffer.wrap(memory, resource.bufPtr, resource.size);
+                var sampleData = wrapArray(memory, resource.bufPtr, resource.size);
                 int data_len = (sampleData.getShort() & 0xFFFF) * 2;
                 int loop_len = (sampleData.getShort() & 0xFFFF) * 2;
                 short unused1 = sampleData.getShort();
@@ -162,7 +163,7 @@ public class MusicScratchTests {
                 byte data_ptr = sampleData.get();
 
                 sample.sample_id = sample_id;
-                sample.frequency = getFrequency((byte) 109);
+                sample.frequency = (short) getFrequency((short) 109);
                 sample.volume = getVolume((byte) volume);
                 sample.data_ptr = data_ptr;
                 sample.data_len = data_len;
@@ -176,21 +177,65 @@ public class MusicScratchTests {
                     sample.loop_pos += data_len;
                     sample.loop_len += loop_len;
                 }
+
+                System.out.printf(
+                        "sample loaded [sample_id: 0x%02x, frequency: %d, volume: %d, data_ptr: 0x%x, data_len: %d, loop_pos: %d, loop_len: %d]%n",
+                        sample.sample_id,
+                        sample.frequency,
+                        sample.volume,
+                        sample.data_ptr,
+                        sample.data_len,
+                        sample.loop_pos,
+                        sample.loop_len
+                );
+
             }
         }
     }
 
+    private ByteBuffer wrapArray(byte[] memory, int bufPtr, int size) {
+        return ByteBuffer.wrap(memory).slice(bufPtr, size);
+    }
+
     private MusicModule load_module(ByteBuffer data, MemEntry music, byte index, short ticks) {
+        System.out.printf("play music [music_id: 0x%02x, index: %d, ticks: %d]\n", music.index, index, ticks);
         var _module = new MusicModule();
         _module.music_id = (short) music.index;
-        _module.music_ticks = data.position( 0x00).getShort();
-        _module.data_ptr = data.position( 0xc0).get();
+        _module.music_ticks = data.position(  0x00).getShort();
+        _module.data_ptr =  0xc0;
         _module.data_pos = 0;
         _module.seq_index = index;
-        _module.seq_count = (byte) data.position( 0x3e).getShort();
+        _module.seq_count = (byte) data.position(  0x3e).getShort();
         if (ticks != 0) {
             _module.music_ticks = ticks;
         }
+System.out.printf(            "module loaded [music_id: 0x%02x, ticks: %d, seq_index: %d, seq_count: %d, data_pos: %d, data_ptr: %d]\n",
+        _module.music_id,
+        _module.music_ticks,
+        _module.seq_index,
+        _module.seq_count,
+        _module.data_pos,
+        _module.data_ptr
+);
         return _module;
     }
+
+
+    private static int getFrequency(short period) {
+        if(period < 55) {
+            return 65535;
+        }
+        return ((Paula.Carrier / period)&0xFFFF);
+    }
+
+    private static  byte getVolume(short volume) {
+        if(volume < 0x00) {
+            volume = 0x00;
+        }
+        if(volume > 0x3f) {
+            volume = 0x3f;
+        }
+        return (byte) volume;
+    }
+
 }

@@ -47,17 +47,4 @@ public class Paula {
         (short) (Carrier /  113)
     };
 
-    public static short getFrequency(byte pitch) {
-        if (pitch > Paula.frequencyTable.length)
-            return pitch = 0;
-        return Paula.frequencyTable[pitch];
-    }
-
-public static  byte getVolume(byte volume) {
-        if (volume > 0x3f) {
-            volume = 0x3f;
-        }
-        return volume;
-    }
-    
 }
