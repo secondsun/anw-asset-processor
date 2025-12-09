@@ -33,9 +33,14 @@ public class MusicScratchTests {
         //music#183
         while (_module.seq_index < _module.seq_count) {
             var sequence = _module.seq_table[_module.seq_index];
+            System.out.printf("process music [music_id: 0x%02x, sequence: 0x%02x, position: 0x%04x]%n",
+                    _module.music_id, sequence, _module.data_pos);
+
             //var moduleData = musicData.slice((int) (_module.data_ptr + _module.data_pos + sequence * 1024), (int) (music.size - (_module.data_ptr + _module.data_pos + sequence * 1024)));
             // Below is probably wrong.
-            var moduleData = wrapArray(musicData.array(), (int) (_module.data_ptr + _module.data_pos + sequence * 1024), musicData.limit() - (int) (_module.data_ptr + _module.data_pos + sequence * 1024));
+//           Data data(_module.data_ptr + _module.data_pos + sequence * 1024);
+            var moduleData = wrapArray(musicData.array(), (int) (musicData.arrayOffset() + _module.data_ptr + _module.data_pos + sequence * 1024), musicData.limit() - (int) (_module.data_ptr + _module.data_pos + sequence * 1024));
+
             for (byte channel = 0; channel < 4; ++channel) {
                 var temp = processPattern(channel, moduleData, _module);
                 if (temp != null) {
@@ -43,16 +48,16 @@ public class MusicScratchTests {
                 }
             }
             //MIXER.MIXALLCHANNELS
-            var buffer = new short[SAMPLE_RATE * 10];
-            var length = SAMPLE_RATE * 10;
+            var buffer = new short[SAMPLE_RATE/4 ];
+            var length = SAMPLE_RATE /4;
 
             for (var channel : channels) {
                 new Mixer().mixOneChannel(channel, buffer, length, memory);
             }
 
-            //SoundScratchTests.playAudio(buffer);
+            SoundScratchTests.playAudio(buffer);
 
-            _module.data_pos += moduleData.position() - musicData.position();
+            _module.data_pos += 0x10;
             if (_module.data_pos >= 1024) {
                 _module.data_pos = 0;
                 var seq_index = _module.seq_index + 1;
@@ -66,7 +71,6 @@ public class MusicScratchTests {
             }
 
 
-//          playPattern(data, module);
         }
 
     }
